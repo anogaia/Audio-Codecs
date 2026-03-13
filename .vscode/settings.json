@@ -1,0 +1,10 @@
+{
+    "[cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools"
+    },
+    "files.associations": {
+    "*.cpp": "cpp",
+    "*.h": "cpp",
+    "*.hpp": "cpp"
+    }
+}
