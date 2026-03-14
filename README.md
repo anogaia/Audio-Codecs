@@ -11,10 +11,14 @@ Finally, the downsampled audio can be compressed to create data packets suitable
 
 Current compressors are:
 
+
 **8BitScaled**
+
 Compresses the input from 16-bit or Float32 to 8-bit signed, using packet-by-packet scaling.
 
+
 **8BitVbrDelta**
+
 Internally this first compresses using the 8BitScaled compressor.
 Then it takes that 8-bit raw sample packet and compresses it further using a variable bit-width delta
 encoding, using runs of deltas at the smallest bit width it can, balancing switching costs against the
