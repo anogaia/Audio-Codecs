@@ -5,12 +5,13 @@
 template <class AudioSampleType>
 void SynthesiseAudio<AudioSampleType>::sineWave(float frequency, float sampleRate, float amplitude, AudioSampleType *outputBuffer, uint32_t numSamples) {
 
+    float fullScale = AudioCodecUtils::fullScaleValue<AudioSampleType>();
     float samplePeriod = 1.0f / sampleRate;
     float angleStep = (2*M_PI * frequency) * samplePeriod;
     float angle = 0.0f;
 
     for (int i=0; i<numSamples; i++) {
-        AudioSampleType value = (AudioSampleType)(amplitude * sinf(angle));
+        AudioSampleType value = (AudioSampleType)(amplitude * sinf(angle) * fullScale);
 //        printf("sineWave: %0.2f\r\n", (float)value);
         *outputBuffer++ = value;
         angle += angleStep;
@@ -27,8 +28,10 @@ void SynthesiseAudio<AudioSampleType>::noise(float sampleRate, float amplitude, 
     // Define the range
     std::uniform_real_distribution<> distr(amplitude * -1.0, amplitude); // Define the distribution
 
+    float fullScale = AudioCodecUtils::fullScaleValue<AudioSampleType>();
+
     for (int i=0; i<numSamples; i++) {
-        AudioSampleType value = distr(eng);
+        AudioSampleType value = (AudioSampleType)(distr(eng) * fullScale);
         *outputBuffer++ = value;
     }
 }
