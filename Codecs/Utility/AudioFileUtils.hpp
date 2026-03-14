@@ -1,6 +1,7 @@
 #ifndef __AUDIOFILEUTILS_HPP__
 #define __AUDIOFILEUTILS_HPP__ 1
 
+#include <filesystem>
 #include <stdint.h>
 
 struct AudioFileUtils {
@@ -17,7 +18,7 @@ struct AudioFileUtils {
     struct vbif_header {
         char        cc4[4] = {'V', 'B', 'I', 'F'};  // 4CC VBIF ID
         vbif_fs     fileSpec;           // Encoding flags etc.
-        uint8_t     sampleRateDiv300;   // Sample rate divided by 300. (eg. 160 for 48kHz, 147 for 44.1kHz etc.)
+        uint8_t     sampleRateDiv300;   // Sample rate divided by 300. (eg. 160 for 48kHz, 147 for 44.1kHz, 192 for 57.6kHz etc.)
         uint16_t    frameLength;        // Length of each frame, in samples.
     };
 

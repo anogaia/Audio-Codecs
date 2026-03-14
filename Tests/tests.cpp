@@ -3,14 +3,14 @@
 #include "../Codecs/Filters/AudioCodecFilter_4X_PolyphaseFIR.hpp"
 #include "../Codecs/Compressors/AudioCodecCompressor_8BitScaled.hpp"
 #include "../Codecs/Compressors/AudioCodecCompressor_8BitVbrDelta.hpp"
-#include "../Codecs/Compressors/AudioCodecCompressor_8BitANSDelta.hpp"
+// #include "../Codecs/Compressors/AudioCodecCompressor_8BitANSDelta.hpp"
 #include "../Codecs/Squelchers/AudioCodecSquelcher_Basic.hpp"
 
 #include "../Codecs/Utility/AudioFileUtils.hpp"
 #include "TestData/make_test_audio.hpp"
 #include "AudioFile.h"
 
-// Native audio sample data type
+// Native audio sample data type - must match the test data WAV files' sample type
 #define SampleType    AudioF32
 
 // For testing, we'll use the common 48kHz sample rate.
@@ -22,7 +22,7 @@
 #define TestFrequency 1753
 #define TestAmplitude 0.95f
 
-const std::string testFileFolder = "/Users/devlaptop1/Documents/Projects/Software/Audio Codecs/Tests/TestData/SpeechFiles/";
+const std::string testFileFolder = "../Tests/TestData/SpeechFiles/";
 
 const std::string testFile1 = testFileFolder + "0016_000013.wav";
 const std::string testFile2 = testFileFolder + "0016_000022.wav";
@@ -32,6 +32,9 @@ const std::string testFile4 = testFileFolder + "0016_000350.wav";
 int main()
 {
     printf("Testing AudioFile WAV file compression.\n");
+
+    //std::filesystem::path cwd = std::filesystem::current_path();
+    //std::cout << "Current working directory: " << cwd << std::endl;
 
     AudioFile<SampleType> testFile;
     AudioFile<SampleType> outFile;
