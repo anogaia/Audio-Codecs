@@ -13,7 +13,7 @@ protected:
 public:
     void squelch(AudioSampleType *inputSamples, uint32_t numInputSamples) override;
 
-    AudioCodecSquelcher_Basic(float threshold = 0.0035f, float attackRate = 0.75f, float decayRate = 0.9f);
+    AudioCodecSquelcher_Basic(float threshold = 0.0025f, float attackRate = 0.5f, float decayRate = 0.95f);
 
      ~AudioCodecSquelcher_Basic() override {};
 };

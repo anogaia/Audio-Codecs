@@ -11,7 +11,7 @@
 #include "AudioFile.h"
 
 // Native audio sample data type - must match the test data WAV files' sample type
-#define SampleType    AudioF32
+#define SampleType    AudioS16
 
 // For testing, we'll use the common 48kHz sample rate.
 // Since audio packets will be 256 samples, at 12kHz downsampled rate, we'll use 1024 input samples.
@@ -40,7 +40,7 @@ int main()
     AudioFile<SampleType> outFile;
 
     // WAV Filename for testing
-    std::string testFilename = testFile3;
+    std::string testFilename = testFile4;
 
     // Prepare compressed output file
     std::string compressedFilename = stripFileExtension(testFilename).append("_comp.vbi");
@@ -74,6 +74,7 @@ int main()
 
     // Set Compressor
     AudioCodecCompressor_8BitVbrDelta<SampleType> codecCompressor;
+//    AudioCodecCompressor_8BitScaled<SampleType> codecCompressor;
     codec.setCompressor(codecCompressor);
 
     // Set Squelcher
@@ -145,10 +146,10 @@ int main()
             float compRatio32 = (float)outCompBufferWritten / (float)ioBufferSize;
 //            printf("\nCompression Ratio: %0.1f:1 or %.1f %% (compared to 32-bit floating point)\r\n", (1.0f/compRatio32), compRatio32 * 100);
 
-            float compRatio16 = (float)outCompBufferWritten / (float)(NumInputSamples/2 + 1);
+            float compRatio16 = (float)outCompBufferWritten / (NumInputSamples/2.0f + 1.0f);
 //            printf("Compression Ratio: %0.1f:1 or %.1f %% (compared to 16-bit PCM)\r\n", (1.0f/compRatio16), compRatio16 * 100);
 
-            float compRatio8 = (float)outCompBufferWritten / (float)(NumInputSamples/4 + 1);
+            float compRatio8 = (float)outCompBufferWritten / (NumInputSamples/4.0f + 1.0f);
             printf("Compression Ratio: %0.2f:1 or %.1f %% (compared to 8-bit scaled)\r\n", (1.0f/compRatio8), compRatio8 * 100);
 
             compRatio8_acc += compRatio8;
@@ -183,7 +184,7 @@ int main()
     free(outputBuffer);
     free(compBuffer);
 
-    printf("\nAll done.\n");
+    printf("\nAll done.\n\n");
 
     return 0;
 }

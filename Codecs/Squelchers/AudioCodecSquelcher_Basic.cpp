@@ -10,7 +10,7 @@ void AudioCodecSquelcher_Basic<AudioSampleType>::squelch(AudioSampleType *inputS
 
     bool display = (m_currentSquelch > 0.25f);
 
-//    printf("AudioCodecSquelcher_Basic: processing %d input samples.\n", numInputSamples);
+//    printf("AudioCodecSquelcher_Basic: processing %d input samples. Full-scale sample value: %0.0f\n", numInputSamples, fullScale);
 
     for (int i=0; i<numInputSamples; i++) {
         AudioSampleType input = inputSamples[i];
@@ -28,7 +28,7 @@ void AudioCodecSquelcher_Basic<AudioSampleType>::squelch(AudioSampleType *inputS
             m_currentSquelch += (1.0f - m_currentSquelch) * m_attackRate;
         }
 
-    //    if (i%16 == 0) printf("Squelch[%d]: %0.3f\n", i, m_currentSquelch);
+        //if (i%16 == 0) printf("Squelch[%d]: %0.3f\n", i, m_currentSquelch);
 
         inputSamples[i] = (AudioSampleType)(input * m_currentSquelch);
     }

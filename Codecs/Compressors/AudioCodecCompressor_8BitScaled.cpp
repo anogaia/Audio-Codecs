@@ -11,13 +11,13 @@ template <class AudioSampleType>
 void AudioCodecCompressor_8BitScaled<AudioSampleType>::compress(AudioSampleType *inputSamples, uint32_t numInputSamples, AudioBytes *outputBytes, uint32_t *outNumBytesOutputData) {
     
     // Get the full scale value for our sample type
-    AudioSampleType fullScale = AudioCodecUtils::fullScaleValue<AudioSampleType>();
+    double fullScale = AudioCodecUtils::fullScaleValue<AudioSampleType>();
 
     // First, we need to detect the maximum amplitude in our input audio
     AudioSampleType maxSample = (AudioSampleType)0;
     for (int i=0; i<numInputSamples; i++) {
         AudioSampleType inputSample = std::abs(inputSamples[i]);
-    //    printf("8BitScaled: Input Sample: %0.2f\r\n", (float)inputSamples[i]);
+//        printf("8BitScaled: Input Sample: %0.2f Abs Input Sample: %0.2f\r\n", (float)inputSamples[i], (float)inputSample);
         maxSample = std::max(inputSample, maxSample);
     }
 
@@ -90,7 +90,7 @@ void AudioCodecCompressor_8BitScaled<AudioSampleType>::decompress(AudioBytes *in
 
     // Calculate the upScale value we need to re-scale the downScaled values back to the 
     // full-scale of the sample type in use.
-    double upScale = (fullScale * scaleValue) / 32767.0;
+    double upScale = (fullScale / 32767.0) * scaleValue;
 //    printf("8BitScaled: decoder upScale Value: %0.2f\r\n", (float)upScale);
     for (int i=0; i<(numBytesInputData-1); i++) {
         int8_t inputByte = (int8_t)*inputData++;
