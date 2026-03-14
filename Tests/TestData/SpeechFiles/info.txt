@@ -1,5 +1,5 @@
 These are converted .wav files from the emotion speech dataset.
-They have been converted from 16-bit 16kHz to float32 48kHz, 
+They have been converted from 16-bit 16kHz to 16-bit 48kHz, 
 so that they more closely resemble the input data from a smartphone
 or tablet microphone API.
 
@@ -7,7 +7,7 @@ They are first put through the codec's filter, which decimates from
 48kHz to 12kHz sample rate, with concurrent pre-filtering to avoid nyquist
 issues. The files are processed in 1024 sample chunks, which leads to the 
 filtered and decimated output being in 256 sample chunks, which is the
-audio packet length used over the P2P links in ccChat.
+audio packet length used over the P2P links.
 The samples are then scaled to 8-bit by taking the maximum volume per 
 packet and scaling all values so that they most effectively fill that
 sample range.
@@ -23,9 +23,9 @@ Finally, this 256 sample per packet form is expanded using an interpolation
 filter to convert it from the 12kHz sample rate back to 48kHz.
 
 So it basically simulates the end-to-end process that would occur in a
-voice chat application like ccChat.
+voice chat application.
 
 The output is built up packet by packet and then saved to a new filename.
 The processed versions have a _proc postfix added to the filename.
 
-This gives an easy comparison between the original and processed versions.
+This allows an easy comparison between the original and processed versions.
