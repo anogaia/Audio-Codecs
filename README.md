@@ -2,6 +2,8 @@
 
 A small C++ audio codec library and test harness built with modern CMake.
 
+This codec is designed for VOIP-style use cases, delivering near 16-bit perceptual audio quality at low bit rates around 8 kB/s (64 kbps).
+
 ## Overview
 
 This repository contains:
