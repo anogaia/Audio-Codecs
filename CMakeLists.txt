@@ -1,34 +1,47 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.15)
 
-set(CMAKE_CXX_STANDARD 17)             # Set the C++ standard to C++17
-set(CMAKE_CXX_STANDARD_REQUIRED ON)    # Make the standard required
-set(CMAKE_CXX_EXTENSIONS OFF)          # Disable compiler-specific extensions
+project(AudioCodecs VERSION 1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")    # Debug build flags
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")     # Release build flags
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Define the project name
-project(tests)
+add_library(audio_codecs STATIC
+    Codecs/AudioCodec.cpp
+    Codecs/Compressors/AudioCodecCompressor_8BitScaled.cpp
+    Codecs/Compressors/AudioCodecCompressor_8BitVbrDelta.cpp
+    Codecs/Filters/AudioCodecFilter_4X.cpp
+    Codecs/Filters/AudioCodecFilter_4X_PolyphaseFIR.cpp
+    Codecs/Squelchers/AudioCodecSquelcher_Basic.cpp
+)
 
-# Define the main executable target
-add_executable(tests)
+target_include_directories(audio_codecs
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/Codecs
+        ${CMAKE_CURRENT_SOURCE_DIR}/Codecs/Compressors
+        ${CMAKE_CURRENT_SOURCE_DIR}/Codecs/Filters
+        ${CMAKE_CURRENT_SOURCE_DIR}/Codecs/Squelchers
+        ${CMAKE_CURRENT_SOURCE_DIR}/Codecs/Utility
+)
 
-# Use address sanitizer for detecting memory leak and other memory errors.
-# But only in Debug builds.
+target_compile_features(audio_codecs PUBLIC cxx_std_17)
+
+add_executable(tests
+    Tests/tests.cpp
+)
+
+target_include_directories(tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Codecs
+    ${CMAKE_CURRENT_SOURCE_DIR}/Tests
+)
+
+target_link_libraries(tests PRIVATE audio_codecs)
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  target_compile_options(tests PRIVATE -fsanitize=address)
-  target_link_libraries(tests PRIVATE -fsanitize=address)
+    target_compile_options(tests PRIVATE -fsanitize=address)
+    target_link_libraries(tests PRIVATE -fsanitize=address)
 endif()
 
-# Add source files from subdirectories
-file(GLOB SOURCES 
-"*.cpp"  
-"tests/*.cpp"
-"tests/testdata/*.cpp"
-"codecs/*.cpp" 
-"codecs/filters/*.cpp" 
-"codecs/compressors/*.cpp"
-"codecs/squelchers/*.cpp"
-) 
-target_sources(tests PRIVATE ${SOURCES})
+enable_testing()
+add_test(NAME AudioCodecsTests COMMAND tests)
 

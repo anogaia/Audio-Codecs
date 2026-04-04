@@ -1,27 +1,73 @@
-Something of a playground for audio codecs I'm working on.
-These are designed for use in VOIP, mainly.
+# Audio Codecs
 
-They can take in audio at normal capture rate for desktop and mobile, eg. 48kHz or 44.1kHz.
+A small C++ audio codec library and test harness built with modern CMake.
 
-The codec container has pluggable squelchers, filters and compressors, applied in that order.
+## Overview
 
-The basic idea is to first squelch, to remove systematic noise and imperceptible sounds.
-Then filter and downsample to a lower rate. Currently, 4:1 downsampling is implemented, giving 12kHz or 11.025kHz respectively.
-Finally, the downsampled audio can be compressed to create data packets suitable for VOIP transmission.
+This repository contains:
 
-Current compressors are:
+- `Codecs/`: core audio codec implementation files
+- `Tests/`: test executable and test audio generation utilities
+- `CMakeLists.txt`: modern CMake build script for a static library and test target
 
+## Build Instructions
 
-**8BitScaled**
+1. Create a build directory:
 
-Compresses the input from 16-bit or Float32 to 8-bit signed, using packet-by-packet scaling.
+```bash
+mkdir -p build && cd build
+```
 
+2. Configure the project with CMake:
 
-**8BitVbrDelta**
+```bash
+cmake ..
+```
 
-Internally this first compresses using the 8BitScaled compressor.
-Then it takes that 8-bit raw sample packet and compresses it further using a variable bit-width delta
-encoding, using runs of deltas at the smallest bit width it can, balancing switching costs against the
-cost of encoding samples, using bit widths from 3 to 8 bits per sample.
-It also encodes runs of silence efficiently, using two codes which encode either 4 or 16 zero samples. 
+3. Build the library and tests:
 
+```bash
+cmake --build .
+```
+
+## Run Tests
+
+From the `build/` directory:
+
+```bash
+./tests
+```
+
+If the test target is available through CTest:
+
+```bash
+ctest --output-on-failure
+```
+
+## Development
+
+- The project targets **C++17**.
+- The main library target is `audio_codecs`.
+- The test executable is `tests` and links against `audio_codecs`.
+
+### Project Structure
+
+- `Codecs/AudioCodec.cpp` and `Codecs/AudioCodec.hpp`
+- `Codecs/Compressors/`
+- `Codecs/Filters/`
+- `Codecs/Squelchers/`
+- `Codecs/Utility/`
+- `Tests/tests.cpp`
+
+## Contributing
+
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/my-change`
+3. Commit your changes with clear messages.
+4. Push your branch and open a pull request.
+
+Please keep contributions focused, provide tests for new behavior, and ensure the project still builds cleanly.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0. See `LICENSE` for details.
