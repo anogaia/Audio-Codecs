@@ -10,7 +10,9 @@ This repository contains:
 
 - `Codecs/`: core audio codec implementation files
 - `Tests/`: test executable and test audio generation utilities
-- `CMakeLists.txt`: modern CMake build script for a static library and test target
+- `tools/`: `anog` CLI converter, plus offline FIR design scripts
+- `docs/`: design notes (`.anog` format, 44.1↔12 kHz filter, …)
+- `CMakeLists.txt`: modern CMake build script for a static library and test targets
 
 ## Build Instructions
 
@@ -32,25 +34,51 @@ cmake ..
 cmake --build .
 ```
 
+## `.anog` files
+
+Compressed audio uses the **ANOG** container (extension `.anog`): header + seek table + length-prefixed interleaved mono packets. Spec: [`docs/ANOG_FORMAT.md`](docs/ANOG_FORMAT.md).
+
+```bash
+./anog -enc input.wav [output.anog] [--frame-ms 100]
+./anog -dec input.anog [output.wav]
+./anog -enc '*'                  # all WAVs in cwd → .anog beside them
+./anog -dec '*'                  # all ANOGs in cwd → .wav beside them
+./anog -all                      # all WAVs in cwd → ./ANOG/*.anog
+./anog -all -r                   # recurse; mirror tree under ./ANOG/
+```
+
+Quote `'*'` so the shell does not expand it. Existing outputs prompt before overwrite. `--frame-ms` sets encode frame length (default **100**). Supported PCM rates: **48000** (4:1 filter) and **44100** (40:147 filter). Stereo is two mono streams interleaved per frame.
+
+Original vs decoded residual distortion (THD+N-style):
+
+```bash
+source tools/.venv/bin/activate
+python tools/anog_thd_compare.py [original.wav] [decoded.wav]
+```
+
 ## Run Tests
 
 From the `build/` directory:
 
 ```bash
 ./tests
+./test_filter_44100_12000
+./test_anog_roundtrip
 ```
 
-If the test target is available through CTest:
+Or via CTest:
 
 ```bash
 ctest --output-on-failure
 ```
 
+Related docs: [`docs/FILTER_44100_12000.md`](docs/FILTER_44100_12000.md) · [`docs/ANOG_FORMAT.md`](docs/ANOG_FORMAT.md)
+
 ## Development
 
 - The project targets **C++17**.
 - The main library target is `audio_codecs`.
-- The test executable is `tests` and links against `audio_codecs`.
+- CLI tool `anog` links against `audio_codecs`.
 
 ### Project Structure
 
@@ -58,7 +86,8 @@ ctest --output-on-failure
 - `Codecs/Compressors/`
 - `Codecs/Filters/`
 - `Codecs/Squelchers/`
-- `Codecs/Utility/`
+- `Codecs/Utility/` (`AnogFile.hpp`, …)
+- `tools/anog.cpp`
 - `Tests/tests.cpp`
 
 ## Contributing
