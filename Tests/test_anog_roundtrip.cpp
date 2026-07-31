@@ -2,8 +2,13 @@
 
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <string>
 #include <vector>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 static int g_failures = 0;
 
@@ -14,6 +19,10 @@ static void expect_true(bool cond, const char *msg) {
     } else {
         printf("PASS: %s\n", msg);
     }
+}
+
+static std::string temp_anog_path(const std::string &stem) {
+    return (std::filesystem::temp_directory_path() / (stem + ".anog")).string();
 }
 
 static void make_tone(std::vector<AnogCodec::Sample> &dst, uint32_t rate, double freq, double seconds) {
@@ -29,9 +38,7 @@ static void roundtrip_mono(uint32_t rate, Anog::FilterId expect_filter, uint16_t
     make_tone(mono, rate, 440.0, 0.5);
 
     std::vector<std::vector<AnogCodec::Sample>> ch = {mono};
-    const std::string path =
-        std::string("/Users/devlaptop1/Documents/Projects/Stone/Audio-Codecs/build/anog_rt_") +
-        std::to_string(rate) + ".anog";
+    const std::string path = temp_anog_path("anog_rt_" + std::to_string(rate));
 
     AnogCodec::encode_wav_channels_to_anog(ch, rate, frame_ms, path);
 
@@ -75,8 +82,7 @@ static void roundtrip_stereo_48k() {
     make_tone(left, 48000, 440.0, 0.3);
     make_tone(right, 48000, 660.0, 0.3);
     std::vector<std::vector<AnogCodec::Sample>> ch = {left, right};
-    const std::string path =
-        "/Users/devlaptop1/Documents/Projects/Stone/Audio-Codecs/build/anog_rt_stereo.anog";
+    const std::string path = temp_anog_path("anog_rt_stereo");
     AnogCodec::encode_wav_channels_to_anog(ch, 48000, 100, path);
 
     Anog::Header hdr;

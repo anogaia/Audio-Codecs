@@ -9,8 +9,28 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
-#include <unistd.h>
 #include <vector>
+
+#ifdef _WIN32
+#include <io.h>
+#define ANOG_DUP _dup
+#define ANOG_DUP2 _dup2
+#define ANOG_CLOSE _close
+#define ANOG_OPEN _open
+#define ANOG_STDOUT_FILENO 1
+#define ANOG_DEVNULL "NUL"
+#ifndef O_WRONLY
+#define O_WRONLY _O_WRONLY
+#endif
+#else
+#include <unistd.h>
+#define ANOG_DUP dup
+#define ANOG_DUP2 dup2
+#define ANOG_CLOSE close
+#define ANOG_OPEN open
+#define ANOG_STDOUT_FILENO STDOUT_FILENO
+#define ANOG_DEVNULL "/dev/null"
+#endif
 
 namespace fs = std::filesystem;
 
@@ -21,21 +41,21 @@ class SuppressStdout {
 public:
     SuppressStdout() {
         fflush(stdout);
-        saved_ = dup(STDOUT_FILENO);
+        saved_ = ANOG_DUP(ANOG_STDOUT_FILENO);
         if (saved_ < 0) {
             return;
         }
-        const int devnull = open("/dev/null", O_WRONLY);
+        const int devnull = ANOG_OPEN(ANOG_DEVNULL, O_WRONLY);
         if (devnull >= 0) {
-            dup2(devnull, STDOUT_FILENO);
-            close(devnull);
+            ANOG_DUP2(devnull, ANOG_STDOUT_FILENO);
+            ANOG_CLOSE(devnull);
         }
     }
     ~SuppressStdout() {
         fflush(stdout);
         if (saved_ >= 0) {
-            dup2(saved_, STDOUT_FILENO);
-            close(saved_);
+            ANOG_DUP2(saved_, ANOG_STDOUT_FILENO);
+            ANOG_CLOSE(saved_);
         }
     }
     SuppressStdout(const SuppressStdout &) = delete;
