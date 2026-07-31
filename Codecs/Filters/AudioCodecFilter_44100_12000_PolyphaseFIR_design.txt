@@ -1,0 +1,32 @@
+/**
+ *
+ * Polyphase FIR rational resampler — 44.1 kHz <-> 12 kHz (40:147)
+ *
+ * Design
+ * ------
+ *   Method             : Parks-McClellan equiripple (remez)
+ *   Prototype rate     : 1764000 Hz  (= 40 * 44100 = 147 * 12000)
+ *   Total taps         : 5880  (linear-phase)
+ *   Encode phases (L)  : 40   taps/phase : 147
+ *   Decode phases (M)  : 147  taps/phase : 40
+ *   Remez stop weight  : 10
+ *
+ * Measured frequency response (prototype / L, relative to 0 dB passband)
+ * ---------------------------
+ *   Passband edge      : 5500 Hz
+ *   Passband deviation : 0.051 dB
+ *   Passband ripple    : 0.060 dB
+ *   Transition band    : 5500 - 6500 Hz
+ *   Stopband edge      : 6500 Hz
+ *   Stopband atten     : 67.4 dB
+ *
+ * Trade-off note
+ * --------------
+ * Same absolute pass/stop edges as the 48 kHz 4:1 design.  The stopband
+ * edge (6500 Hz) coincides with the start of the first alias zone of the
+ * 12 kHz domain (fs_out - f_pass = 12000 - 5500 = 6500 Hz).
+ *
+ * Regenerate coefficients:
+ *   source tools/.venv/bin/activate && python tools/design_fir_44k1_12k.py --emit-header
+ *
+ */

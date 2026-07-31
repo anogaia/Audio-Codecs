@@ -1,2 +1,10 @@
 /build/
 /.cache/
+/tools/.venv/
+# Local / generated media (do not commit large music or encode outputs)
+/Tests/TestData/Music/
+/Tests/TestData/music/
+*.anog
+*_decoded.wav
+*_comp.anog
+/tools/__pycache__/
