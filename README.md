@@ -10,7 +10,7 @@ This repository contains:
 
 - `Codecs/`: core audio codec implementation files
 - `Tests/`: test executable and test audio generation utilities
-- `tools/`: `anog` CLI converter, plus offline FIR design scripts
+- `tools/`: `anog` CLI, `wav44_to_24.py` (44.1→24 kHz library prep), `album_loudness.py` (J9 LUFS sidecars), FIR design / THD scripts
 - `docs/`: design notes (`.anog` format, 44.1↔12 kHz filter, …)
 - `CMakeLists.txt`: modern CMake build script for a static library and test targets
 
@@ -48,6 +48,26 @@ Compressed audio uses the **ANOG** container (extension `.anog`): header + seek 
 ```
 
 Quote `'*'` so the shell does not expand it. Existing outputs prompt before overwrite. `--frame-ms` sets encode frame length (default **100**). Supported PCM rates: **48000** (4:1 filter) and **44100** (40:147 filter). Stereo is two mono streams interleaved per frame.
+
+### 44.1 kHz → 24 kHz WAV (jukebox library)
+
+For Amy’s planned **24 kHz house-rate** bed (see AmyClient `docs/JUKEBOX.md` J7): one high-quality polyphase resample to mono PCM16 @ 24 kHz — **no ANOG** in the library path.
+
+```bash
+source tools/.venv/bin/activate
+python tools/wav44_to_24.py track.wav [out.wav]
+python tools/wav44_to_24.py /path/to/rips -all -r --out-root ./WAV24 -y
+```
+
+Default is **mono** mixdown; pass `--stereo` to keep channels.
+
+After converting into `WAV24/`, measure album loudness and write `loudness.json` sidecars (Amy Client applies gain at play — **ffmpeg** required):
+
+```bash
+# apt install ffmpeg   # once on the host
+python tools/album_loudness.py /path/to/WAV24/Artist/Album
+python tools/album_loudness.py /path/to/WAV24 -all -r --skip-tracks
+```
 
 Original vs decoded residual distortion (THD+N-style):
 
