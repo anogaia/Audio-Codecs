@@ -1,14 +1,19 @@
 #include "../Codecs/AudioCodec.hpp"
 #include "../Codecs/Filters/AudioCodecFilter_4X.hpp"
 #include "../Codecs/Filters/AudioCodecFilter_4X_PolyphaseFIR.hpp"
+#include "../Codecs/Filters/AudioCodecFilter_2X_PolyphaseFIR.hpp"
 #include "../Codecs/Compressors/AudioCodecCompressor_8BitScaled.hpp"
 #include "../Codecs/Compressors/AudioCodecCompressor_8BitVbrDelta.hpp"
+#include "../Codecs/Compressors/AudioCodecCompressor_12BitScaled.hpp"
+#include "../Codecs/Compressors/AudioCodecCompressor_12BitVbrDelta.hpp"
 // #include "../Codecs/Compressors/AudioCodecCompressor_8BitANSDelta.hpp"
 #include "../Codecs/Squelchers/AudioCodecSquelcher_Basic.hpp"
 
 #include "../Codecs/Utility/AudioFileUtils.hpp"
 #include "TestData/make_test_audio.hpp"
 #include "AudioFile.h"
+
+#include <cmath>
 
 // Native audio sample data type - must match the test data WAV files' sample type
 #define SampleType    AudioS16
@@ -70,11 +75,13 @@ int main()
     // Set Filter
     AudioCodecFilter_4X_PolyphaseFIR<SampleType> codecFilter;
 //    AudioCodecFilter_4X<SampleType> codecFilter;
+//    AudioCodecFilter_2X_PolyphaseFIR<SampleType> codecFilter;  // HD: 48 kHz <-> 24 kHz
     codec.setFilter(codecFilter);
 
     // Set Compressor
     AudioCodecCompressor_8BitVbrDelta<SampleType> codecCompressor;
 //    AudioCodecCompressor_8BitScaled<SampleType> codecCompressor;
+//    AudioCodecCompressor_12BitVbrDelta<SampleType> codecCompressor;  // HD: 12-bit VBR delta
     codec.setCompressor(codecCompressor);
 
     // Set Squelcher
@@ -183,6 +190,38 @@ int main()
     free(inputBuffer);
     free(outputBuffer);
     free(compBuffer);
+
+    // Minimal HD building-block smoke test (does not change the default 8-bit / 12 kHz path above).
+    // Enable with: cmake -DAUDIO_CODECS_TEST_HD=ON ..
+#ifdef AUDIO_CODECS_TEST_HD
+    {
+        printf("\n--- HD building-block smoke test (2X FIR + 12-bit VBR) ---\n");
+        AudioCodec<SampleType> hdCodec;
+        AudioCodecFilter_2X_PolyphaseFIR<SampleType> hdFilter;
+        AudioCodecCompressor_12BitVbrDelta<SampleType> hdCompressor;
+        hdCodec.setFilter(hdFilter);
+        hdCodec.setCompressor(hdCompressor);
+
+        const uint32_t hdInputSamples = 512;
+        SampleType *hdIn = (SampleType*)malloc(hdInputSamples * sizeof(SampleType));
+        SampleType *hdOut = (SampleType*)malloc(hdInputSamples * sizeof(SampleType));
+        uint32_t hdCompSize = hdCodec.getMaxEncodedBytes(hdInputSamples);
+        uint8_t *hdComp = (uint8_t*)malloc(hdCompSize);
+
+        for (uint32_t i=0; i<hdInputSamples; i++) {
+            float t = (float)i / (float)SampleRate;
+            hdIn[i] = (SampleType)(sin(2.0 * M_PI * 440.0 * t) * 0.5f * AudioCodecUtils::fullScaleValue<SampleType>());
+        }
+
+        uint32_t written = hdCompSize;
+        hdCodec.encode(hdIn, hdInputSamples, hdComp, &written);
+        uint32_t decoded = hdInputSamples;
+        hdCodec.decode(hdComp, written, hdOut, &decoded);
+        printf("HD smoke: encoded %u bytes, decoded %u samples (expected %u)\n", written, decoded, hdInputSamples);
+
+        free(hdIn); free(hdOut); free(hdComp);
+    }
+#endif
 
     printf("\nAll done.\n\n");
 

@@ -1,2 +1,5 @@
 /build/
 /.cache/
+/Tests/TestData/ListeningCompare/
+/Tests/TestData/SpeechFiles/*_comp.vbi
+/Tests/TestData/SpeechFiles/*_proc.wav

@@ -40,6 +40,15 @@ From the `build/` directory:
 ./tests
 ```
 
+Sibling harnesses (leave the default `tests` path unchanged):
+
+```bash
+./tests_hd       # HD path smoke + residual metrics (2X FIR + 12-bit VBR)
+./tests_listen   # A/B listening compare: legacy 8-bit/12 kHz vs HD 12-bit/24 kHz
+```
+
+`tests_listen` writes same-rate/bit-depth decoded WAVs (plus residuals and a short summary) under `Tests/TestData/ListeningCompare/` for side-by-side audition.
+
 If the test target is available through CTest:
 
 ```bash
@@ -50,7 +59,7 @@ ctest --output-on-failure
 
 - The project targets **C++17**.
 - The main library target is `audio_codecs`.
-- The test executable is `tests` and links against `audio_codecs`.
+- The test executables are `tests`, `tests_hd`, and `tests_listen`; each links against `audio_codecs`.
 
 ### Project Structure
 
@@ -60,6 +69,8 @@ ctest --output-on-failure
 - `Codecs/Squelchers/`
 - `Codecs/Utility/`
 - `Tests/tests.cpp`
+- `Tests/tests_hd.cpp`
+- `Tests/tests_listen.cpp`
 
 ## Contributing
 
