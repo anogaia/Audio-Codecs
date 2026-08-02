@@ -86,6 +86,16 @@ From the `build/` directory:
 ./test_anog_roundtrip
 ```
 
+Sibling harnesses (leave the default `tests` path unchanged):
+
+```bash
+./tests_hd       # HD path smoke + residual metrics (2X FIR + 12-bit VBR)
+./tests_listen   # A/B listening compare: legacy 8-bit/12 kHz vs HD 12-bit/24 kHz
+```
+
+`tests_listen` writes same-rate/bit-depth decoded WAVs (plus residuals and a short summary) under `Tests/TestData/ListeningCompare/` for side-by-side audition.
+
+If the test target is available through CTest:
 Or via CTest:
 
 ```bash
@@ -98,6 +108,7 @@ Related docs: [`docs/FILTER_44100_12000.md`](docs/FILTER_44100_12000.md) · [`do
 
 - The project targets **C++17**.
 - The main library target is `audio_codecs`.
+- The test executables are `tests`, `tests_hd`, and `tests_listen`; each links against `audio_codecs`.
 - CLI tool `anog` links against `audio_codecs`.
 
 ### Project Structure
@@ -109,6 +120,8 @@ Related docs: [`docs/FILTER_44100_12000.md`](docs/FILTER_44100_12000.md) · [`do
 - `Codecs/Utility/` (`AnogFile.hpp`, …)
 - `tools/anog.cpp`
 - `Tests/tests.cpp`
+- `Tests/tests_hd.cpp`
+- `Tests/tests_listen.cpp`
 
 ## Contributing
 

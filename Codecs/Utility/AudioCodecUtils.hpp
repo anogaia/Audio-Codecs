@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <cstring>
 #include <algorithm>
+#include <limits>
 #include <math.h>
 #include <type_traits>
 #include <typeinfo>
@@ -42,6 +43,17 @@ static inline int8_t sign_extend(uint8_t value, unsigned n_bits) {
     return (int8_t)(val | (sign_mask & extend_mask));
 };
 
+// Sign-extend a value of 1..16 bits to a signed 16-bit value (used by 12BitVbrDelta).
+static inline int16_t sign_extend16(uint16_t value, unsigned n_bits) {
+    if (n_bits == 0 || n_bits > 16) return 0;
+    uint16_t mask = (uint16_t)((n_bits == 16) ? 0xFFFFu : ((1u << n_bits) - 1u));
+    uint16_t val = value & mask;
+    uint16_t sign_bit = (val >> (n_bits - 1)) & 1u;
+    uint16_t sign_mask = (uint16_t)(0u - sign_bit);
+    uint16_t extend_mask = (uint16_t)~mask;
+    return (int16_t)(val | (sign_mask & extend_mask));
+};
+
 // Calculate the number of significant bits required to encode a signed 8-bit value
 // Modified to return at least 3 bits, to match the 8BitVbrDelta codec
 static inline uint8_t count_significant_bits(int8_t num) {
@@ -55,6 +67,25 @@ static inline uint8_t count_significant_bits(int8_t num) {
     else if (magnitude >= 8)  count = 4;
     else if (magnitude >= 4)  count = 3;
 //    else if (magnitude >= 2)  count = 2;
+
+    return count + 1;
+};
+
+// Calculate the number of significant bits required to encode a signed value up to 12-bit.
+// Returns at least 3 bits and at most 12 bits, to match the 12BitVbrDelta codec.
+static inline uint8_t count_significant_bits12(int16_t num) {
+    uint16_t magnitude = (uint16_t)(num < 0 ? -num : num);
+    uint8_t count = 2;
+
+    if (magnitude >= 1024) count = 11;
+    else if (magnitude >= 512) count = 10;
+    else if (magnitude >= 256) count = 9;
+    else if (magnitude >= 128) count = 8;
+    else if (magnitude >= 64)  count = 7;
+    else if (magnitude >= 32)  count = 6;
+    else if (magnitude >= 16)  count = 5;
+    else if (magnitude >= 8)   count = 4;
+    else if (magnitude >= 4)   count = 3;
 
     return count + 1;
 };
@@ -113,6 +144,33 @@ static inline void write_nbits(uint32_t bit_index, uint8_t *data, unsigned n_bit
         data[byte_index + 1] &= ~(mask >> (8 - bit_pos)); // Clear relevant bits in the next byte
         data[byte_index + 1] |= (bits & mask) >> (8 - bit_pos); // Write remaining bits to next byte
     }
+};
+
+// Read 1..16 bits from a bit-packed data buffer (LSB-first). Used by 12BitVbrDelta.
+static inline uint16_t read_nbits16(uint32_t bit_index, uint8_t *data, unsigned n_bits) {
+    if (n_bits < 1 || n_bits > 16) {
+        return 0;
+    }
+    if (n_bits <= 8) {
+        return read_nbits(bit_index, data, n_bits);
+    }
+    // Split into low 8 bits + remaining high bits
+    uint16_t low = read_nbits(bit_index, data, 8);
+    uint16_t high = read_nbits(bit_index + 8, data, n_bits - 8);
+    return (uint16_t)(low | (high << 8));
+};
+
+// Write 1..16 bits into a data buffer (LSB-first). Used by 12BitVbrDelta.
+static inline void write_nbits16(uint32_t bit_index, uint8_t *data, unsigned n_bits, uint16_t bits) {
+    if (n_bits < 1 || n_bits > 16) {
+        return;
+    }
+    if (n_bits <= 8) {
+        write_nbits(bit_index, data, n_bits, (uint8_t)bits);
+        return;
+    }
+    write_nbits(bit_index, data, 8, (uint8_t)(bits & 0xFF));
+    write_nbits(bit_index + 8, data, n_bits - 8, (uint8_t)((bits >> 8) & 0xFF));
 };
 
 

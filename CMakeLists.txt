@@ -10,8 +10,11 @@ add_library(audio_codecs STATIC
     Codecs/AudioCodec.cpp
     Codecs/Compressors/AudioCodecCompressor_8BitScaled.cpp
     Codecs/Compressors/AudioCodecCompressor_8BitVbrDelta.cpp
+    Codecs/Compressors/AudioCodecCompressor_12BitScaled.cpp
+    Codecs/Compressors/AudioCodecCompressor_12BitVbrDelta.cpp
     Codecs/Filters/AudioCodecFilter_4X.cpp
     Codecs/Filters/AudioCodecFilter_4X_PolyphaseFIR.cpp
+    Codecs/Filters/AudioCodecFilter_2X_PolyphaseFIR.cpp
     Codecs/Filters/AudioCodecFilter_44100_12000_PolyphaseFIR.cpp
     Codecs/Squelchers/AudioCodecSquelcher_Basic.cpp
 )
@@ -38,6 +41,45 @@ target_include_directories(tests PRIVATE
 )
 
 target_link_libraries(tests PRIVATE audio_codecs)
+
+# Sibling HD harness: 2X polyphase FIR + 12-bit VBR on speech WAVs (does not replace `tests`).
+add_executable(tests_hd
+    Tests/tests_hd.cpp
+)
+
+target_include_directories(tests_hd PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Codecs
+    ${CMAKE_CURRENT_SOURCE_DIR}/Tests
+)
+
+target_link_libraries(tests_hd PRIVATE audio_codecs)
+
+# Sibling listening A/B harness: legacy 8-bit/12 kHz vs HD 12-bit/24 kHz on speech WAVs.
+add_executable(tests_listen
+    Tests/tests_listen.cpp
+)
+
+target_include_directories(tests_listen PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Codecs
+    ${CMAKE_CURRENT_SOURCE_DIR}/Tests
+)
+
+target_link_libraries(tests_listen PRIVATE audio_codecs)
+
+# Optional: also build a tiny sine smoke path into the default `tests` binary.
+option(AUDIO_CODECS_TEST_HD "Build an optional HD (2X + 12-bit) smoke test into the tests binary" OFF)
+if(AUDIO_CODECS_TEST_HD)
+    target_compile_definitions(tests PRIVATE AUDIO_CODECS_TEST_HD)
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(tests PRIVATE -fsanitize=address)
+    target_link_libraries(tests PRIVATE -fsanitize=address)
+    target_compile_options(tests_hd PRIVATE -fsanitize=address)
+    target_link_libraries(tests_hd PRIVATE -fsanitize=address)
+    target_compile_options(tests_listen PRIVATE -fsanitize=address)
+    target_link_libraries(tests_listen PRIVATE -fsanitize=address)
+endif()
 
 add_executable(test_filter_44100_12000
     Tests/test_filter_44100_12000.cpp
@@ -74,7 +116,7 @@ target_include_directories(anog PRIVATE
 target_link_libraries(anog PRIVATE audio_codecs)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    foreach(tgt tests test_filter_44100_12000 test_anog_roundtrip anog)
+    foreach(tgt test_filter_44100_12000 test_anog_roundtrip anog)
         target_compile_options(${tgt} PRIVATE -fsanitize=address)
         target_link_libraries(${tgt} PRIVATE -fsanitize=address)
     endforeach()
@@ -82,5 +124,8 @@ endif()
 
 enable_testing()
 add_test(NAME AudioCodecsTests COMMAND tests)
+add_test(NAME AudioCodecsHdTests COMMAND tests_hd)
+add_test(NAME AudioCodecsListenCompare COMMAND tests_listen)
+
 add_test(NAME Filter44100To12000 COMMAND test_filter_44100_12000)
 add_test(NAME AnogRoundTrip COMMAND test_anog_roundtrip)

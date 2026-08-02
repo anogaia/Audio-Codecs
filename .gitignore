@@ -1,5 +1,8 @@
 /build/
 /.cache/
+/Tests/TestData/ListeningCompare/
+/Tests/TestData/SpeechFiles/*_comp.vbi
+/Tests/TestData/SpeechFiles/*_proc.wav
 /tools/.venv/
 # Local / generated media (do not commit large music or encode outputs)
 /Tests/TestData/Music/
