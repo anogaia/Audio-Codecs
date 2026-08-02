@@ -79,6 +79,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_link_libraries(tests_hd PRIVATE -fsanitize=address)
     target_compile_options(tests_listen PRIVATE -fsanitize=address)
     target_link_libraries(tests_listen PRIVATE -fsanitize=address)
+endif()
+
 add_executable(test_filter_44100_12000
     Tests/test_filter_44100_12000.cpp
 )
@@ -114,7 +116,7 @@ target_include_directories(anog PRIVATE
 target_link_libraries(anog PRIVATE audio_codecs)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    foreach(tgt tests test_filter_44100_12000 test_anog_roundtrip anog)
+    foreach(tgt test_filter_44100_12000 test_anog_roundtrip anog)
         target_compile_options(${tgt} PRIVATE -fsanitize=address)
         target_link_libraries(${tgt} PRIVATE -fsanitize=address)
     endforeach()
