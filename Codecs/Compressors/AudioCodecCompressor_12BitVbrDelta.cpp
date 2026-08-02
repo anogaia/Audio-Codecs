@@ -21,8 +21,9 @@
 // Codes 12-15 are reserved / unused.
 //
 // The unsymmetric most-negative value of each delta size is used as an end-of-run marker
-// (e.g. -2048 for 12-bit deltas). A delta of exactly -2048 is adjusted to -2047 with
-// forward error propagation, matching the 8-bit codec's -128 handling.
+// (e.g. -2048 for 12-bit deltas). Deltas wrap in signed 12-bit on encode and decode
+// (mirroring 8-bit ANOG int8 wrap). Only -2048 is adjusted to -2047 with 1-LSB
+// forward error propagation — do not clamp large polarity flips.
 
 
 // Prototypes for internal helper functions (12-bit variants; names avoid clashing with 8-bit helpers)
@@ -37,6 +38,11 @@ static inline void store_int16_le(AudioBytes *dst, int16_t value) {
 
 static inline int16_t load_int16_le(const AudioBytes *src) {
     return (int16_t)(src[0] | (src[1] << 8));
+}
+
+// Signed 12-bit modular wrap into [-2048, +2047] — mirrors (int8_t) cast in 8-bit ANOG.
+static inline int16_t wrap_signed_12(int32_t value) {
+    return (int16_t)(((value + 2048) & 0xFFF) - 2048);
 }
 
 
@@ -170,7 +176,9 @@ void AudioCodecCompressor_12BitVbrDelta<AudioSampleType>::decompress(AudioBytes 
             if (deltaBits == currentEndOfRunCode) {
                 modeIsDelta = false;
             } else {
-                currentSample = (int16_t)(currentSample + AudioCodecUtils::sign_extend16(deltaBits, currentDeltaLength));
+                // Wrap in signed 12-bit, matching encode (same role as int8 add in 8-bit ANOG).
+                currentSample = wrap_signed_12((int32_t)currentSample +
+                    AudioCodecUtils::sign_extend16(deltaBits, currentDeltaLength));
                 store_int16_le(&m_12BitScaledDecompBuffer[outputDataIndex], currentSample);
                 outputDataIndex += 2;
                 outputSampleIndex++;
@@ -222,8 +230,21 @@ void AudioCodecCompressor_12BitVbrDelta<AudioSampleType>::decompress(AudioBytes 
 
 template <class AudioSampleType>
 uint32_t AudioCodecCompressor_12BitVbrDelta<AudioSampleType>::getBytesMaxCompressedSize(uint32_t numSamples) {
-    // Worst case: all deltas as 12-bit, plus scale, first sample (16 bits), plus one 4-bit length code.
-    uint32_t bits = (numSamples > 0 ? (numSamples - 1) * 12 : 0) + 8 + 16 + kCodeBits;
+    // Worst case is not a single 12-bit run: every run transition writes an end-of-run
+    // marker (deltaBits wide). Pathological layout = each delta its own 12-bit run:
+    //   header 24 bits (scale + first sample)
+    //   + D × (kCodeBits + 12) for codes/deltas
+    //   + (D-1) × 12 for EORs between runs
+    // The old formula only budgeted one length code and omitted EORs — music with
+    // mid-packet bit-width / silence changes could exceed it (Amy panic: n=771, cap=770).
+    uint32_t D = (numSamples > 0) ? (numSamples - 1) : 0;
+    uint32_t bits = 8 + 16;
+    if (D > 0) {
+        bits += D * (uint32_t)kCodeBits + D * 12u;
+        if (D > 1) {
+            bits += (D - 1) * 12u;
+        }
+    }
     return (bits + 7) >> 3;
 }
 
@@ -245,13 +266,15 @@ template class AudioCodecCompressor_12BitVbrDelta<AudioS32>;
 
 static void prepareDeltaAndCodeBuffers12(uint32_t numDeltas, int16_t *samples, int16_t *deltas, uint8_t *deltaLengths, uint8_t *codes) {
 
+    // Mirror 8-bit ANOG: wrap deltas in signed 12-bit (not clamp). Only -2048 is the
+    // end-of-run symbol — nudge to -2047 and propagate a 1-LSB correction.
     int16_t errorCorrection = 0;
     for (uint32_t i=0; i<numDeltas; i++) {
         int32_t thisSample = samples[i];
         int32_t nextSample = samples[i+1];
         int32_t delta = nextSample - thisSample + errorCorrection;
         errorCorrection = 0;
-        int16_t delta16 = (int16_t)delta;
+        int16_t delta16 = wrap_signed_12(delta);
 
         // Avoid using -2048 (the 12-bit end-of-run symbol) as a real delta.
         if (delta16 == -2048) {

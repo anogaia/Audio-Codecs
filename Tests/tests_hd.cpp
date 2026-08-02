@@ -19,6 +19,7 @@
 
 #include "../Codecs/AudioCodec.hpp"
 #include "../Codecs/Filters/AudioCodecFilter_2X_PolyphaseFIR.hpp"
+#include "../Codecs/Filters/AnogHDPostDecodeLpf.hpp"
 #include "../Codecs/Compressors/AudioCodecCompressor_12BitVbrDelta.hpp"
 #include "../Codecs/Squelchers/AudioCodecSquelcher_Basic.hpp"
 #include "../Codecs/Utility/AudioFileUtils.hpp"
@@ -419,6 +420,156 @@ static FilterResponseSummary measureFilterCascadeResponse(int sampleRate) {
 }
 
 // ---------------------------------------------------------------------------
+// Regression: full-scale polarity flip must not desync 12-bit VBR
+// ---------------------------------------------------------------------------
+//
+// Pre-fix: sample steps of ±2047 produced |delta| up to 4094. Packing only 12
+// bits made +2048 collide with the end-of-run marker → bitstream desync.
+// Fix: wrap deltas/accumulator in signed 12-bit (mirror 8-bit ANOG int8 wrap);
+// only -2048 is nudged with a 1-LSB propagate. Polarity flips round-trip cleanly.
+
+static int testFullScalePolarityFlipRoundtrip() {
+    printf("--- Regression: full-scale polarity-flip 12-bit VBR round-trip ---\n");
+
+    constexpr uint32_t N = 256;
+    AudioCodecCompressor_12BitVbrDelta<SampleType> compressor;
+    std::vector<SampleType> input(N);
+    std::vector<SampleType> output(N, 0);
+
+    // Full-scale step mid-frame → after 12BitScaled, a ±2047 polarity flip.
+    for (uint32_t i = 0; i < N; ++i) {
+        input[i] = (i < N / 2)
+            ? static_cast<SampleType>(-32767)
+            : static_cast<SampleType>(32767);
+    }
+
+    const uint32_t maxBytes = compressor.getBytesMaxCompressedSize(N);
+    std::vector<uint8_t> compressed(maxBytes, 0);
+    uint32_t written = maxBytes;
+    compressor.compress(input.data(), N, compressed.data(), &written);
+
+    uint32_t outN = N;
+    compressor.decompress(compressed.data(), written, output.data(), &outN);
+
+    if (outN != N) {
+        printf("FAIL: decoded %u samples, expected %u (likely bitstream desync)\n", outN, N);
+        return 1;
+    }
+
+    // With 12-bit wrap, the step reconstructs; allow only 12-bit quantisation error.
+    constexpr int32_t kMaxAbsErr = 512;
+    int bad = 0;
+    int32_t maxAbsErr = 0;
+    for (uint32_t i = 0; i < N; ++i) {
+        const int32_t err = std::abs(static_cast<int32_t>(input[i]) -
+                                     static_cast<int32_t>(output[i]));
+        if (err > maxAbsErr) maxAbsErr = err;
+        if (err > kMaxAbsErr) ++bad;
+    }
+
+    if (bad > 0) {
+        printf("FAIL: %d samples exceed abs err %d (maxAbsErr=%d)\n",
+               bad, kMaxAbsErr, maxAbsErr);
+        return 1;
+    }
+
+    printf("PASS: polarity-flip round-trip (written=%u bytes, maxAbsErr=%d)\n\n",
+           written, maxAbsErr);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Regression: getBytesMaxCompressedSize must cover multi-run EOR overhead
+// ---------------------------------------------------------------------------
+//
+// Old formula assumed one 12-bit run (one length code, no EORs). A mid-frame
+// silence island forces run transitions; encode can exceed that budget and
+// overrun the caller buffer (Amy: panic [:771] with capacity 770).
+
+static int testMaxCompressedSizeCoversEORRuns() {
+    printf("--- Regression: max compressed size covers EOR run transitions ---\n");
+
+    constexpr uint32_t N = 512; // voice packet after 2× decimation
+    AudioCodecCompressor_12BitVbrDelta<SampleType> compressor;
+    std::vector<SampleType> input(N);
+
+    // Loud → short silence → loud: forces at least one EOR between 12-bit runs.
+    for (uint32_t i = 0; i < N; ++i) {
+        if (i >= N / 3 && i < N / 3 + 16) {
+            input[i] = 0;
+        } else {
+            input[i] = (i & 1)
+                ? static_cast<SampleType>(-32767)
+                : static_cast<SampleType>(32767);
+        }
+    }
+
+    const uint32_t maxBytes = compressor.getBytesMaxCompressedSize(N);
+    // Pre-fix single-run budget for N=512 was 770.
+    constexpr uint32_t kOldSingleRunBudget = 770;
+    if (maxBytes <= kOldSingleRunBudget) {
+        printf("FAIL: maxBytes=%u still looks like the old single-run formula\n", maxBytes);
+        return 1;
+    }
+
+    std::vector<uint8_t> compressed(maxBytes, 0);
+    uint32_t written = maxBytes;
+    compressor.compress(input.data(), N, compressed.data(), &written);
+
+    if (written > maxBytes) {
+        printf("FAIL: wrote %u bytes into buffer of %u\n", written, maxBytes);
+        return 1;
+    }
+    if (written <= kOldSingleRunBudget) {
+        // Soft check: this stimulus should usually exceed the old budget; if not,
+        // still OK as long as maxBytes is correct — but flag for visibility.
+        printf("NOTE: written=%u did not exceed old budget %u (stimulus may have merged)\n",
+               written, kOldSingleRunBudget);
+    }
+
+    uint32_t outN = N;
+    std::vector<SampleType> output(N, 0);
+    compressor.decompress(compressed.data(), written, output.data(), &outN);
+    if (outN != N) {
+        printf("FAIL: decoded %u samples, expected %u\n", outN, N);
+        return 1;
+    }
+
+    printf("PASS: maxBytes=%u written=%u (old single-run budget was %u)\n\n",
+           maxBytes, written, kOldSingleRunBudget);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Regression: post-decode Butterworth LPF meets 10 kHz / −24 dB @ 12 kHz
+// ---------------------------------------------------------------------------
+
+static int testPostDecodeLpfResponse() {
+    printf("--- Regression: AnogHD post-decode LPF response ---\n");
+    const float g1 = AnogHDPostDecodeLpf::measureGainDb(1000.f);
+    const float g10 = AnogHDPostDecodeLpf::measureGainDb(10000.f);
+    const float g12 = AnogHDPostDecodeLpf::measureGainDb(12000.f);
+    printf("Gain @ 1 kHz: %+.2f dB (expect ~0)\n", g1);
+    printf("Gain @ 10 kHz: %+.2f dB (expect ~-3)\n", g10);
+    printf("Gain @ 12 kHz: %+.2f dB (expect <= -24)\n", g12);
+
+    if (g1 > 1.f || g1 < -1.f) {
+        printf("FAIL: passband not flat at 1 kHz\n");
+        return 1;
+    }
+    if (g10 > -2.f || g10 < -5.f) {
+        printf("FAIL: expected ~-3 dB at 10 kHz cutoff\n");
+        return 1;
+    }
+    if (g12 > -24.f) {
+        printf("FAIL: need <= -24 dB at 12 kHz\n");
+        return 1;
+    }
+    printf("PASS: post-decode LPF response\n\n");
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
 // Main HD encode/decode harness
 // ---------------------------------------------------------------------------
 
@@ -430,6 +581,16 @@ int main() {
     printf("      proxy, not classic pure-tone THD. See comments in tests_hd.cpp.\n");
     printf("NOTE: Band-edge spill is a rough residual spectral proxy near ~12 kHz\n");
     printf("      (internal Nyquist), not a standards aliasing metric.\n\n");
+
+    if (testFullScalePolarityFlipRoundtrip() != 0) {
+        return 1;
+    }
+    if (testMaxCompressedSizeCoversEORRuns() != 0) {
+        return 1;
+    }
+    if (testPostDecodeLpfResponse() != 0) {
+        return 1;
+    }
 
     // Filter-only cascade response (decimate+expand), before speech codec loop.
     {
