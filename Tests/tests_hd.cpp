@@ -34,6 +34,11 @@
 #include <string>
 #include <vector>
 
+// MSVC does not define M_PI in <cmath> unless _USE_MATH_DEFINES is set.
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #define SampleType AudioS16
 
 #define SampleRate      48000

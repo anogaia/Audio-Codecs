@@ -33,8 +33,15 @@
 #define SampleRate      48000
 #define NumInputSamples 1024
 
-static const std::string testFileFolder = "../Tests/TestData/SpeechFiles/";
-static const std::string outFolder      = "../Tests/TestData/ListeningCompare/";
+// Prefer CMake-provided absolute TestData root (works from build/ and build/<Config>/).
+#ifndef AUDIO_CODECS_TEST_DATA_DIR
+#define AUDIO_CODECS_TEST_DATA_DIR "../Tests/TestData"
+#endif
+
+static const std::string testFileFolder =
+    std::string(AUDIO_CODECS_TEST_DATA_DIR) + "/SpeechFiles/";
+static const std::string outFolder =
+    std::string(AUDIO_CODECS_TEST_DATA_DIR) + "/ListeningCompare/";
 
 // Same speech pool as the other harnesses; pick one short-ish clip for quick A/B.
 static const std::string testFile1 = testFileFolder + "0016_000013.wav";
