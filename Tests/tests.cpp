@@ -23,36 +23,28 @@
 // This is then a good test for a realistic native audio input for one audio packet.
 #define SampleRate      48000
 #define NumInputSamples 1024
+#include "anog_codec_io.hpp"
+#include "AudioFile.h"
 
-#define TestFrequency 1753
-#define TestAmplitude 0.95f
+#include <cmath>
+#include <cstdio>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <vector>
+
+using SampleType = AnogCodec::Sample;
 
 const std::string testFileFolder = "../Tests/TestData/SpeechFiles/";
-
-const std::string testFile1 = testFileFolder + "0016_000013.wav";
-const std::string testFile2 = testFileFolder + "0016_000022.wav";
-const std::string testFile3 = testFileFolder + "0016_000255.wav";
 const std::string testFile4 = testFileFolder + "0016_000350.wav";
 
-int main()
-{
-    printf("Testing AudioFile WAV file compression.\n");
-
-    //std::filesystem::path cwd = std::filesystem::current_path();
-    //std::cout << "Current working directory: " << cwd << std::endl;
+int main() {
+    printf("Testing ANOG encode/decode on a speech WAV.\n");
 
     AudioFile<SampleType> testFile;
-    AudioFile<SampleType> outFile;
-
-    // WAV Filename for testing
-    std::string testFilename = testFile4;
-
-    // Prepare compressed output file
-    std::string compressedFilename = stripFileExtension(testFilename).append("_comp.vbi");
-    std::ofstream compressedFile (compressedFilename, std::ios::trunc | std::ios::binary);
-    if (!compressedFile.is_open())
-    {
-        std::cerr << "Error: Unable to open output file at " << compressedFilename << std::endl; 
+    const std::string testFilename = testFile4;
+    if (!testFile.load(testFilename)) {
+        std::cerr << "Error: Unable to load " << testFilename << "\n";
         return -1;
     }
 
@@ -280,100 +272,74 @@ int main()
         double normalised = distanceFromMiddle / NumInputSamples;
         double scale = normalised * normalised;
         inputBuffer[i] *= scale;
-    }
+    const int inputBitDepth = testFile.getBitDepth();
+    const int inputSampleRate = testFile.getSampleRate();
+    const float inputLengthSeconds = testFile.getLengthInSeconds();
+    const int numSamples = testFile.getNumSamplesPerChannel();
+    const int numChannels = testFile.getNumChannels();
+    printf("Test File Bit Depth: %d, Sample Rate: %d, Channels: %d, Length: %0.2f s.\n",
+           inputBitDepth, inputSampleRate, numChannels, inputLengthSeconds);
 
-    // Encode audio into compressed buffer
-    uint32_t outCompBufferWritten = compBufferSize;
-    codec->encode(inputBuffer, NumInputSamples, compBuffer, &outCompBufferWritten);
-    printf("Filtered, decimated and encoded audio length: %d bytes\r\n", outCompBufferWritten);
-
-    // Decode compressed audio into output buffer
-    uint32_t outOutputSamplesWritten = NumInputSamples;
-    codec->decode(compBuffer, outCompBufferWritten, outputBuffer, &outOutputSamplesWritten);
-    printf("Decoded and expanded audio length: %lu bytes (%d samples, %lu bytes per sample)\r\n", outOutputSamplesWritten * sizeof(SampleType), outOutputSamplesWritten, sizeof(SampleType));
-
-    // Calculate compression ratio
-    float compRatio32 = (float)outCompBufferWritten / (float)ioBufferSize;
-    printf("\nCompression Ratio: %0.1f:1 or %.1f %% (compared to 32-bit floating point)\r\n", (1.0f/compRatio32), compRatio32 * 100);
-
-    float compRatio16 = (float)outCompBufferWritten / (float)(NumInputSamples/2 + 1);
-    printf("Compression Ratio: %0.1f:1 or %.1f %% (compared to 16-bit PCM)\r\n", (1.0f/compRatio16), compRatio16 * 100);
-
-    float compRatio8 = (float)outCompBufferWritten / (float)(NumInputSamples/4 + 1);
-    printf("Compression Ratio: %0.1f:1 or %.1f %% (compared to 8-bit scaled)\r\n", (1.0f/compRatio8), compRatio8 * 100);
-
-    // Calculate data rate
-    float dataRate = (float)outCompBufferWritten / ((float)NumInputSamples/(float)SampleRate);
-    printf("Compressed Data Rate: %0.1f kB/sec or %0.0f kbps\r\n\n", dataRate / 1024.0, dataRate / 128.0);
-
-    // Report histogram
-    AudioCodecCompressor_8BitVbrDelta<SampleType> *compressor = (AudioCodecCompressor_8BitVbrDelta<SampleType>*)codec->m_compressor;
-    uint32_t numSamples = 0;
-    for (int i=-127; i<128; i++) {
-        uint8_t count = compressor->m_deltaHistogram[(uint8_t)i];
-        printf("Histogram[%d] = %d\n", i, count);
-        numSamples += count;
-    }
-    printf("Delta Histogram sanity check: numDeltaSamples = %d\n\n", numSamples);
-
-    // Quick & Dirty error calculation - Just run through comparing input and output buffer contents
-    double diff_acc = 0.0;
-    double scale_acc = 0.0;
-    for (int i=0; i<NumInputSamples-1; i++) {
-        // Offset here between compared samples is to account for the tiny delay introduced by the
-        // interpolation process when expanding back to full sample rate. Wouldn't be fair otherwise.
-        double inputSample = (double)inputBuffer[i];
-        double outputSample = (double)outputBuffer[i+1];
-        double diff = fabs(inputSample - outputSample);
-        diff_acc += diff;
-        double scale = (fabs(inputSample) < 0.001) ? 1.0 : fabs(outputSample / inputSample);
-//        printf("scale: %0.2f ... ", scale);
-        scale_acc += scale;
-
-        // Log some of the last samples for visible verification
-        if (i > ((NumInputSamples*6)/8)) {
-//            printf("Test(raw): InputSample[%d] = %0.3f  \tOutputSample[%d] = %0.3f  \tDiff = %0.3f  \tScale = %0.3f\r\n", i, inputSample, i+1, outputSample, diff, scale);
-        }
-    }
-    double avg_err = (diff_acc / (NumInputSamples-1) / TestAmplitude) * 100.0;
-    printf("\nAverage differential error, input vs output: +/- %.3f %%\r\n", avg_err);
-    double scale_err = (scale_acc / (NumInputSamples-1));
-    printf("Average scale error, input vs output: %.2f %% (raw: %0.2f)\r\n", scale_err * 100.0 - 100.0, scale_err);
-
-    diff_acc = 0.0;
-    // Redo the differential error after correction for scale error.
-    // This gives us a better idea of the audio quality, since even a perfectly faithful signal
-    // that is scaled down (due to filter roll-off, for example) will create an artificial 
-    // differential error that doesn't really represent a loss of quality.
-    double scale_adj = scale_err;//sqrt(scale_err);
-    for (int i=0; i<NumInputSamples-1; i++) {
-        // Offset here between compared samples is to account for the tiny delay introduced by the
-        // interpolation process when expanding back to full sample rate. Wouldn't be fair otherwise.
-        double inputSample = (double)inputBuffer[i];
-        double outputSample = (double)outputBuffer[i+1] / scale_adj; // Divide by scale_err to get closer comparison
-        double diff = fabs(inputSample - outputSample);
-        diff_acc += diff;     
-        // Log some of the last samples for visible verification
-        if (i > ((NumInputSamples*6)/8)) {
-    //        printf("Test(scaleCorrected): InputSample[%d] = %0.3f  \tOutputSample[%d] = %0.3f  \tDiff = %0.3f\r\n", i, inputSample, i+1, outputSample, diff);
+    std::vector<std::vector<SampleType>> channels;
+    channels.resize(size_t(numChannels));
+    for (int c = 0; c < numChannels; c++) {
+        channels[size_t(c)].resize(size_t(numSamples));
+        for (int i = 0; i < numSamples; i++) {
+            channels[size_t(c)][size_t(i)] = testFile.samples[size_t(c)][size_t(i)];
         }
     }
 
-    // Of course, this doesn't entirely improve the differential error, becuase the filter also
-    // introduces a frequency-dependent phase shift, which also makes samples less comparable.
-    avg_err = (diff_acc / (NumInputSamples-1) / TestAmplitude) * 100.0;
-    printf("Scale-corrected average differential error, input vs output: +/- %.3f %%\r\n", avg_err);
-    
-    // Cleanup
-    delete synth;
-    free(compBuffer);
-    free(inputBuffer);
-    free(outputBuffer);
-    delete codec;
+    const uint16_t frame_ms = 100;
+    const std::string compressedFilename = testFilename.substr(0, testFilename.find_last_of('.')) + "_comp.anog";
 
-    printf("\nAll done.\r\n\n");
+    try {
+        AnogCodec::encode_wav_channels_to_anog(channels, uint32_t(inputSampleRate), frame_ms,
+                                               compressedFilename);
+    } catch (const std::exception &ex) {
+        std::cerr << "Encode failed: " << ex.what() << "\n";
+        return -1;
+    }
 
+    std::ifstream measure(compressedFilename, std::ios::binary | std::ios::ate);
+    const auto compFileLength = measure.tellg();
+    measure.close();
+
+    const double pcmBytes =
+        double(numSamples) * double(numChannels) * double(sizeof(SampleType));
+    const double ratio = pcmBytes / double(compFileLength);
+    const double kbps = (double(compFileLength) * 8.0 / inputLengthSeconds) / 1000.0;
+
+    printf("Saved compressed output: %s\n", compressedFilename.c_str());
+    printf("Compressed size: %lld bytes (%0.1f kB)\n",
+           static_cast<long long>(compFileLength), double(compFileLength) / 1024.0);
+    printf("Compression vs 16-bit PCM: %0.2f:1\n", ratio);
+    printf("Average bitrate: %0.1f kbps (frame_ms=%u)\n", kbps, unsigned(frame_ms));
+
+    Anog::Header hdr;
+    std::vector<std::vector<SampleType>> decoded;
+    try {
+        AnogCodec::decode_anog_to_channels(compressedFilename, hdr, decoded);
+    } catch (const std::exception &ex) {
+        std::cerr << "Decode failed: " << ex.what() << "\n";
+        return -1;
+    }
+
+    AudioFile<SampleType> outFile;
+    outFile.setBitDepth(16);
+    outFile.setSampleRate(int(hdr.pcm_sample_rate));
+    outFile.setNumChannels(int(hdr.channels));
+    outFile.setNumSamplesPerChannel(int(hdr.pcm_total_samples));
+    for (uint8_t c = 0; c < hdr.channels; c++) {
+        for (uint64_t i = 0; i < hdr.pcm_total_samples; i++) {
+            outFile.samples[c][size_t(i)] = decoded[c][size_t(i)];
+        }
+    }
+
+    const std::string outputFilename = testFilename.substr(0, testFilename.find_last_of('.')) + "_proc.wav";
+    outFile.save(outputFilename);
+    printf("Saved decompressed WAV: %s\n", outputFilename.c_str());
+    printf("ANOG frames: %u, compressed samples/ch: %llu\n", hdr.seek_entry_count,
+           static_cast<unsigned long long>(hdr.compressed_total_samples));
+    printf("\nAll done.\n");
     return 0;
 }
-
-*/

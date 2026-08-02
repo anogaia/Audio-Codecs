@@ -304,20 +304,26 @@ void AudioCodecCompressor_8BitVbrDelta<AudioSampleType>::decompress(AudioBytes *
         }
     }
 
-    // Check for decoding correctness
-    uint32_t numIncorrectDecodes = 0;
-    uint32_t totalError = 0;
-    for (int i=0; i<numOutputSamples; i++) {
-        int8_t inputValue = m_8BitScaledBuffer[i];
-        int8_t outputValue = m_8BitScaledDecompBuffer[i];
-        if (inputValue != outputValue) { numIncorrectDecodes++; totalError += abs(inputValue - outputValue); }
-//        printf("Decoding Check: Input[%d] = %d  \tOutput[%d] = %d\n", i, inputValue, i, outputValue);
+    // Optional encode/decode self-check (only valid if this instance just compressed).
+    if (m_8BitScaledBuffer != NULL && m_num8BitScaledBufferBytes >= numOutputSamples) {
+        uint32_t numIncorrectDecodes = 0;
+        uint32_t totalError = 0;
+        for (uint32_t i = 0; i < numOutputSamples; i++) {
+            int8_t inputValue = (int8_t)m_8BitScaledBuffer[i];
+            int8_t outputValue = (int8_t)m_8BitScaledDecompBuffer[i];
+            if (inputValue != outputValue) {
+                numIncorrectDecodes++;
+                totalError += abs(inputValue - outputValue);
+            }
+        }
+        printf("Incorrect Decoded Values: %d (%0.1f %% of %d). Total error: %d\n", numIncorrectDecodes,
+               100.0f * (float)numIncorrectDecodes / (float)numOutputSamples, numOutputSamples, totalError);
     }
-    printf("Incorrect Decoded Values: %d (%0.1f %% of %d). Total error: %d\n", numIncorrectDecodes, 100.0f*(float)numIncorrectDecodes/numOutputSamples, numOutputSamples, totalError);
 
-    // Ok, we now have a buffer of scaled 8-bit samples. 
+    // Ok, we now have a buffer of scaled 8-bit samples.
     // We can now pass this to the 8BitScaled decompressor for reconstruction to the original sample type
-    AudioCodecCompressor_8BitScaled<AudioSampleType>::decompress(m_8BitScaledDecompBuffer, outputDataIndex, outputSamples, outNumOutputSamples);
+    AudioCodecCompressor_8BitScaled<AudioSampleType>::decompress(m_8BitScaledDecompBuffer, outputDataIndex,
+                                                                 outputSamples, outNumOutputSamples);
 }
     
 

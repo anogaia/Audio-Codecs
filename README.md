@@ -10,7 +10,9 @@ This repository contains:
 
 - `Codecs/`: core audio codec implementation files
 - `Tests/`: test executable and test audio generation utilities
-- `CMakeLists.txt`: modern CMake build script for a static library and test target
+- `tools/`: `anog` CLI, `wav44_to_24.py` (44.1→24 kHz library prep), `album_loudness.py` (J9 LUFS sidecars), FIR design / THD scripts
+- `docs/`: design notes (`.anog` format, 44.1↔12 kHz filter, …)
+- `CMakeLists.txt`: modern CMake build script for a static library and test targets
 
 ## Build Instructions
 
@@ -32,12 +34,56 @@ cmake ..
 cmake --build .
 ```
 
+## `.anog` files
+
+Compressed audio uses the **ANOG** container (extension `.anog`): header + seek table + length-prefixed interleaved mono packets. Spec: [`docs/ANOG_FORMAT.md`](docs/ANOG_FORMAT.md).
+
+```bash
+./anog -enc input.wav [output.anog] [--frame-ms 100]
+./anog -dec input.anog [output.wav]
+./anog -enc '*'                  # all WAVs in cwd → .anog beside them
+./anog -dec '*'                  # all ANOGs in cwd → .wav beside them
+./anog -all                      # all WAVs in cwd → ./ANOG/*.anog
+./anog -all -r                   # recurse; mirror tree under ./ANOG/
+```
+
+Quote `'*'` so the shell does not expand it. Existing outputs prompt before overwrite. `--frame-ms` sets encode frame length (default **100**). Supported PCM rates: **48000** (4:1 filter) and **44100** (40:147 filter). Stereo is two mono streams interleaved per frame.
+
+### 44.1 kHz → 24 kHz WAV (jukebox library)
+
+For Amy’s planned **24 kHz house-rate** bed (see AmyClient `docs/JUKEBOX.md` J7): one high-quality polyphase resample to mono PCM16 @ 24 kHz — **no ANOG** in the library path.
+
+```bash
+source tools/.venv/bin/activate
+python tools/wav44_to_24.py track.wav [out.wav]
+python tools/wav44_to_24.py /path/to/rips -all -r --out-root ./WAV24 -y
+```
+
+Default is **mono** mixdown; pass `--stereo` to keep channels.
+
+After converting into `WAV24/`, measure album loudness and write `loudness.json` sidecars (Amy Client applies gain at play — **ffmpeg** required):
+
+```bash
+# apt install ffmpeg   # once on the host
+python tools/album_loudness.py /path/to/WAV24/Artist/Album
+python tools/album_loudness.py /path/to/WAV24 -all -r --skip-tracks
+```
+
+Original vs decoded residual distortion (THD+N-style):
+
+```bash
+source tools/.venv/bin/activate
+python tools/anog_thd_compare.py [original.wav] [decoded.wav]
+```
+
 ## Run Tests
 
 From the `build/` directory:
 
 ```bash
 ./tests
+./test_filter_44100_12000
+./test_anog_roundtrip
 ```
 
 Sibling harnesses (leave the default `tests` path unchanged):
@@ -50,16 +96,20 @@ Sibling harnesses (leave the default `tests` path unchanged):
 `tests_listen` writes same-rate/bit-depth decoded WAVs (plus residuals and a short summary) under `Tests/TestData/ListeningCompare/` for side-by-side audition.
 
 If the test target is available through CTest:
+Or via CTest:
 
 ```bash
 ctest --output-on-failure
 ```
+
+Related docs: [`docs/FILTER_44100_12000.md`](docs/FILTER_44100_12000.md) · [`docs/ANOG_FORMAT.md`](docs/ANOG_FORMAT.md)
 
 ## Development
 
 - The project targets **C++17**.
 - The main library target is `audio_codecs`.
 - The test executables are `tests`, `tests_hd`, and `tests_listen`; each links against `audio_codecs`.
+- CLI tool `anog` links against `audio_codecs`.
 
 ### Project Structure
 
@@ -67,7 +117,8 @@ ctest --output-on-failure
 - `Codecs/Compressors/`
 - `Codecs/Filters/`
 - `Codecs/Squelchers/`
-- `Codecs/Utility/`
+- `Codecs/Utility/` (`AnogFile.hpp`, …)
+- `tools/anog.cpp`
 - `Tests/tests.cpp`
 - `Tests/tests_hd.cpp`
 - `Tests/tests_listen.cpp`
