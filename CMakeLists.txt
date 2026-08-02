@@ -103,6 +103,14 @@ target_include_directories(test_anog_roundtrip PRIVATE
 
 target_link_libraries(test_anog_roundtrip PRIVATE audio_codecs)
 
+add_executable(test_audiofile_pcm_convert
+    Tests/test_audiofile_pcm_convert.cpp
+)
+
+target_include_directories(test_audiofile_pcm_convert PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Tests
+)
+
 add_executable(anog
     tools/anog.cpp
 )
@@ -116,7 +124,7 @@ target_include_directories(anog PRIVATE
 target_link_libraries(anog PRIVATE audio_codecs)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    foreach(tgt test_filter_44100_12000 test_anog_roundtrip anog)
+    foreach(tgt test_filter_44100_12000 test_anog_roundtrip test_audiofile_pcm_convert anog)
         target_compile_options(${tgt} PRIVATE -fsanitize=address)
         target_link_libraries(${tgt} PRIVATE -fsanitize=address)
     endforeach()
@@ -129,3 +137,4 @@ add_test(NAME AudioCodecsListenCompare COMMAND tests_listen)
 
 add_test(NAME Filter44100To12000 COMMAND test_filter_44100_12000)
 add_test(NAME AnogRoundTrip COMMAND test_anog_roundtrip)
+add_test(NAME AudioFilePcmConvert COMMAND test_audiofile_pcm_convert)
