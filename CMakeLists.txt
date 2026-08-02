@@ -66,6 +66,13 @@ target_include_directories(tests_listen PRIVATE
 
 target_link_libraries(tests_listen PRIVATE audio_codecs)
 
+# Absolute TestData root so the harness works from build/ and build/<Config>/
+# (Visual Studio / multi-config places tests_listen.exe under the config dir).
+string(REPLACE "\\" "/" AUDIO_CODECS_TEST_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Tests/TestData")
+target_compile_definitions(tests_listen PRIVATE
+    "AUDIO_CODECS_TEST_DATA_DIR=\"${AUDIO_CODECS_TEST_DATA_DIR}\""
+)
+
 # Optional: also build a tiny sine smoke path into the default `tests` binary.
 option(AUDIO_CODECS_TEST_HD "Build an optional HD (2X + 12-bit) smoke test into the tests binary" OFF)
 if(AUDIO_CODECS_TEST_HD)
